@@ -71,6 +71,8 @@ class InsightDatabaseTesting():
             r = requests.post(url, files=files, data=body, cookies=self._cookies)
         elif method == 'PUT':
             r = requests.put(url, headers=HEADERS, json=body, cookies=self._cookies)
+        elif method == 'PATCH':
+            r = requests.patch(url, headers=HEADERS, json=body, cookies=self._cookies)
         elif method == 'DELETE':
             r = requests.delete(url, headers=HEADERS, json=body, cookies=self._cookies)
         else:
@@ -87,16 +89,28 @@ class InsightDatabaseTesting():
 
         return r.json()
 
+    def _list_elements_part(self, list_key, limit = PAGE_LIMIT, offset = 0):
+        elements = []
+        response = self._call_api('GET', list_key + '?limit=' + str(limit) + '&offset=' + str(offset))
+        if response is None:
+            return None
+
+        # search id from name
+        for target_element in response['rows']:
+            elements.append(target_element.copy())
+
+        return elements
+
     def _list_elements(self, list_key):
         elements = []
         for offset in range(0, MAX_ELEMENTS, PAGE_LIMIT):
-            response = self._call_api('GET', list_key + '?limit=' + str(PAGE_LIMIT) + '&offset=' + str(offset))
-            if len(response['rows']) == 0:
+            elemens_part = self._list_elements_part(list_key, PAGE_LIMIT, offset)
+            if elemens_part is None:
+                break
+            if len(elemens_part) == 0:
                 break
 
-            # search id from name
-            for target_element in response['rows']:
-                elements.append(target_element.copy())
+            elements.extend(elemens_part)
 
         return elements
 
@@ -119,7 +133,7 @@ class InsightDatabaseTesting():
     def list_databases(self):
         return self._list_elements('databases')
 
-    def get_database_id(self, database_name):
+    def get_database_id_from_name(self, database_name):
         return self._get_id_from_name('databases', database_name)
 
     # for SQL workload operation
@@ -157,7 +171,7 @@ class InsightDatabaseTesting():
         body = { 'name': sql_workload_name, 'dbType': db_type, 'dataKind': 'MS', 'source': source_file_name, 'unique': ('true' if is_unique else 'false') }
         response = self._call_api('POST', 'sql-workloads/', body)
         if response is None:
-            return
+            return None
 
         sql_workload_id = response['id']
 
@@ -179,7 +193,7 @@ class InsightDatabaseTesting():
                 self._logger.info('  preparing ...')
             time.sleep(WAIT_SECONDS)
 
-        return response['id']
+        return response
 
     def create_sql_workload_upload(self, sql_workload_name, db_type, source_file_path, is_unique = False):
         self._logger.info('Create SQL-workload(upload): ' + sql_workload_name)
@@ -188,7 +202,7 @@ class InsightDatabaseTesting():
         body = { 'name': sql_workload_name, 'dbType': db_type, 'dataKind': 'MS', 'unique': ('true' if is_unique else 'false') }
         response = self._call_api('POST_UPLOAD', 'sql-workloads/upload', body, files)
         if response is None:
-            return
+            return None
 
         sql_workload_id = response['id']
 
@@ -210,7 +224,55 @@ class InsightDatabaseTesting():
                 self._logger.info('  preparing ...')
             time.sleep(WAIT_SECONDS)
 
-        return response['id']
+        return response
+    
+    def get_sql_workload(self, sql_workload_id):
+        self._logger.info('Get SQL-workload: ' + sql_workload_id)
+        return self._call_api('GET', 'sql-workloads/' + sql_workload_id)
+
+    def get_sql_workload_id_from_name(self, sql_workload_name):
+        return self._get_id_from_name('sql-workloads', sql_workload_name)
+
+    def update_sql_workload(self, sql_workload_id, sql_workload_name = None, db_type = None):
+        self._logger.info('Update SQL-workload: ' + sql_workload_id)
+        if sql_workload_name is None and db_type is None:
+            # do nothing.
+            return None
+
+        body = {}
+        if sql_workload_name is not None:
+            body['name'] = sql_workload_name
+        if db_type is not None:
+            body['dbType'] = db_type
+        return self._call_api('PATCH', 'sql-workloads/' + sql_workload_id, body)
+
+    def delete_sql_workload(self, sql_workload_id):
+        self._logger.info('Delete SQL-workload: ' + sql_workload_id)
+        return self._call_api('DELETE', 'sql-workloads/' + sql_workload_id)
+
+    def get_sql_workload_summary(self, sql_workload_id):
+        self._logger.info('Get SQL-workload summary: ' + sql_workload_id)
+        return self._call_api('GET', 'sql-workloads/' + sql_workload_id + '/summary')
+
+    def get_sql_workload_sqls(self, sql_workload_id, limit = PAGE_LIMIT, offset = 0):
+        self._logger.info('Get SQL-workload sqls: ' + sql_workload_id + ' (limit=' + str(limit) + ', offset=' + str(offset) + ')')
+        return self._list_elements_part('sql-workloads/' + sql_workload_id + '/rows', limit, offset)
+
+    def copy_sql_workload(self, sql_workload_id, name):
+        self._logger.info('Copy SQL-workload: ' + sql_workload_id + ' (name=' + name + ')')
+        body = { 'name': name }
+        return self._call_api('POST', 'sql-workloads/' + sql_workload_id + '/copy', body)
+
+    def update_sql_workload_db_user(self, sql_workload_id, old_users, new_users):
+        self._logger.info('Update SQL-workload DB users: ' + sql_workload_id)
+        body = { 'oldusers': old_users, 'newusers': new_users }
+        return self._call_api('POST', 'sql-workloads/' + sql_workload_id + '/modify', body)
+
+    def update_sql_workload_sqls(self, sql_workload_id, old_users, new_users):
+        self._logger.info('Update SQL-workload SQLs from SCT file: ' + sql_workload_id)
+        self._logger.info('Not supported yet.')
+        # TODO: Not supported yet.
+        return None
 
     # for Assessment operation
 
@@ -255,7 +317,7 @@ class InsightDatabaseTesting():
         body = { 'name': assessment_name, 'sqlWorkloadId': sql_workload_id, 'databaseId': target_db_id, 'users': db_users, 'pswds': db_user_passwords, 'concurrency': concurrency, 'execLevel': execMode, 'transaction': transaction, 'start': '00000000000000', 'end': '99999999999999', 'etimeZero': etimeZero, 'convertParameter': convertParameter, 'fillingBindValueMap': fillingBindValueMap }
         response = self._call_api('POST', 'assessments', body)
         if response is None:
-            return
+            return None
 
         assessment_id = response['id']
 
@@ -277,7 +339,38 @@ class InsightDatabaseTesting():
                 self._logger.info('  preparing ...')
             time.sleep(WAIT_SECONDS)
 
-        return response['id']
+        return response
+
+    def get_assessment(self, assessment_id):
+        self._logger.info('Get Assessment: ' + assessment_id)
+        return self._call_api('GET', 'assessments/' + assessment_id)
+
+    def get_assessment_id_from_name(self, assessment_name):
+        return self._get_id_from_name('assessments', assessment_name)
+
+    def update_assessment(self, assessment_id, assessment_name = None):
+        self._logger.info('Update Assessment: ' + assessment_id)
+        if assessment_name is None:
+            # do nothing.
+            return None
+        body = { 'name': assessment_name }
+        return self._call_api('PATCH', 'assessments/' + assessment_id, body)
+
+    def delete_assessment(self, assessment_id):
+        self._logger.info('Delete Assessment: ' + assessment_id)
+        return self._call_api('DELETE', 'assessments/' + assessment_id)
+
+    def get_assessment_summary(self, assessment_id):
+        self._logger.info('Get Assessment summary: ' + assessment_id)
+        return self._call_api('GET', 'assessments/' + assessment_id + '/summary')
+
+    def get_assessment_sqls(self, assessment_id, limit = PAGE_LIMIT, offset = 0):
+        self._logger.info('Get Assessment sqls: ' + assessment_id + ' (limit=' + str(limit) + ', offset=' + str(offset) + ')')
+        return self._list_elements_part('assessments/' + assessment_id + '/rows', limit, offset)
+
+    def get_assessment_sql(self, assessment_id, assessment_row_id):
+        self._logger.info('Get Assessment sql: ' + assessment_id + ' (assessment_row_id=' + str(assessment_row_id) + ')')
+        return self._call_api('GET', 'assessments/' + assessment_id + '/rows/' + str(assessment_row_id))
 
     def download_assessment_csv(self, assessment_id, csv_type = 'basic', download_success = False, download_failed = True):
         CHUNK_SIZE = 1024
