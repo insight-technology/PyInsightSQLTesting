@@ -133,7 +133,7 @@ class InsightDatabaseTesting():
     def list_databases(self):
         return self._list_elements('databases')
 
-    def get_database_id(self, database_name):
+    def get_database_id_from_name(self, database_name):
         return self._get_id_from_name('databases', database_name)
 
     # for SQL workload operation
@@ -193,7 +193,7 @@ class InsightDatabaseTesting():
                 self._logger.info('  preparing ...')
             time.sleep(WAIT_SECONDS)
 
-        return response['id']
+        return response
 
     def create_sql_workload_upload(self, sql_workload_name, db_type, source_file_path, is_unique = False):
         self._logger.info('Create SQL-workload(upload): ' + sql_workload_name)
@@ -224,11 +224,14 @@ class InsightDatabaseTesting():
                 self._logger.info('  preparing ...')
             time.sleep(WAIT_SECONDS)
 
-        return response['id']
+        return response
     
     def get_sql_workload(self, sql_workload_id):
         self._logger.info('Get SQL-workload: ' + sql_workload_id)
         return self._call_api('GET', 'sql-workloads/' + sql_workload_id)
+
+    def get_sql_workload_id_from_name(self, sql_workload_name):
+        return self._get_id_from_name('sql-workloads', sql_workload_name)
 
     def update_sql_workload(self, sql_workload_id, sql_workload_name = None, db_type = None):
         self._logger.info('Update SQL-workload: ' + sql_workload_id)
@@ -336,11 +339,14 @@ class InsightDatabaseTesting():
                 self._logger.info('  preparing ...')
             time.sleep(WAIT_SECONDS)
 
-        return response['id']
+        return response
 
     def get_assessment(self, assessment_id):
         self._logger.info('Get Assessment: ' + assessment_id)
         return self._call_api('GET', 'assessments/' + assessment_id)
+
+    def get_assessment_id_from_name(self, assessment_name):
+        return self._get_id_from_name('assessments', assessment_name)
 
     def update_assessment(self, assessment_id, assessment_name = None):
         self._logger.info('Update Assessment: ' + assessment_id)
