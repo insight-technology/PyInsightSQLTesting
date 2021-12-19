@@ -344,8 +344,10 @@ class InsightDatabaseTesting():
         self._logger.info('Delete the SQL-workload: ' + sql_workload_id)
         return self._call_api('DELETE', 'sql-workloads/' + sql_workload_id)
 
+    # Deprecated
     def get_sql_workload_summary(self, sql_workload_id):
         self._logger.info('Get SQL-workload summary: ' + sql_workload_id)
+        self._logger.warn('This API is deprecated. The information is included in SQL-workload info.')
         return self._call_api('GET', 'sql-workloads/' + sql_workload_id + '/summary')
 
     def get_sql_workload_sqls(self, sql_workload_id, limit = PAGE_LIMIT, offset = 0):
@@ -362,9 +364,9 @@ class InsightDatabaseTesting():
         body = { 'oldusers': old_users, 'newusers': new_users }
         return self._call_api('POST', 'sql-workloads/' + sql_workload_id + '/modify', body)
 
-    def update_sql_workload_sqls(self, sql_workload_id, old_users, new_users):
+    def update_sql_workload_sqls(self, sql_workload_id):
         self._logger.info('Update the SQL-workload SQLs from SCT file: ' + sql_workload_id)
-        self._logger.info('Not supported yet.')
+        self._logger.warn('Not supported yet.')
         # TODO: Not supported yet.
         return None
 
@@ -391,14 +393,19 @@ class InsightDatabaseTesting():
                         else:
                             print('    elapsed time: cannot calculate')
 
-                        response2 = self._call_api('GET', 'assessments/' + assessment['id'] + '/summary')
-                        if response2 is not None:
-                            if 'all' in response2:
-                                print('    success: ' + str(response2['all']['success']) + ', failed: ' + str(response2['all']['failed']))
-                            else:
-                                print('    no all element')
+                        all_codes = assessment['summary']['allCode']
+                        if assessment['cmpDatabaseId'] is not None:
+                            # 2DB
+                            print('    Assessment summary:')
+                            print('           Tgt-DB Failed:'+str(all_codes[1]))
+                            print('             Both Failed:'+str(all_codes[3]))
+                            print('       Different returns:'+str(all_codes[4]))
+                            print(' Performance degradation:'+str(all_codes[5]))
+                            print('                 Success:'+str(all_codes[0]))
+                            print('      Test src-DB Failed:'+str(all_codes[2]))
                         else:
-                            print('    cannot get summary')
+                            # 1DB
+                            print('    Assessment summary: Success:'+str(all_codes[0])+', Failed:'+str(all_codes[1]))
                     else:
                         print('    not finished.')
                 else:
@@ -406,9 +413,25 @@ class InsightDatabaseTesting():
             else:
                 print('    no jobs element.')
 
-    def execute_assessment(self, assessment_name, sql_workload_id, target_db_id, db_users, db_user_passwords, concurrency = 1, execMode = 'P', transaction = 'R', etimeZero = 0.2, convertParameter = False, fillingBindValueMap = {'UNKNOWN': { 'type': 'UNKNOWN', 'value':'-'}}):
+    def execute_assessment(self, assessment_name, sql_workload_id,
+        db_users, db_user_passwords,
+        target_db_id, cmp_source_db_id = None,
+        patch_sql_workload_id = None, cmp_patch_sql_workload_id = None,
+        execMode = 'P', transaction = 'R', query_timeout_millisec = None,
+        concurrency = 1,
+        etime_zero = 0.2, header_comparison_level = 'STRICT',
+        convert_parameter = False, filling_bind_value_map = {'UNKNOWN': { 'type': 'UNKNOWN', 'value':'-'}},
+        start = '00000000000000', end = '99999999999999'):
         self._logger.info('Execute an assessment: ' + assessment_name)
-        body = { 'name': assessment_name, 'sqlWorkloadId': sql_workload_id, 'databaseId': target_db_id, 'users': db_users, 'pswds': db_user_passwords, 'concurrency': concurrency, 'execLevel': execMode, 'transaction': transaction, 'start': '00000000000000', 'end': '99999999999999', 'etimeZero': etimeZero, 'convertParameter': convertParameter, 'fillingBindValueMap': fillingBindValueMap }
+        body = { 'name': assessment_name, 'sqlWorkloadId': sql_workload_id,
+            'users': db_users, 'pswds': db_user_passwords,
+            'databaseId': target_db_id, 'cmpDatabaseId': cmp_source_db_id,
+            'patchSqlId': patch_sql_workload_id, 'cmpPatchSqlId': cmp_patch_sql_workload_id,
+            'execLevel': execMode, 'transaction': transaction, 'queryTimeoutMillisec': query_timeout_millisec,
+            'concurrency': concurrency,
+            'etimeZero': etime_zero, 'headerComparisonLevel': header_comparison_level,
+            'convertParameter': convert_parameter, 'fillingBindValueMap': filling_bind_value_map,
+            'start': start, 'end': end }
         response = self._call_api('POST', 'assessments', body)
         if response is None:
             return None
@@ -454,8 +477,10 @@ class InsightDatabaseTesting():
         self._logger.info('Delete the assessment: ' + assessment_id)
         return self._call_api('DELETE', 'assessments/' + assessment_id)
 
+    # Deprecated
     def get_assessment_summary(self, assessment_id):
         self._logger.info('Get assessment summary: ' + assessment_id)
+        self._logger.warn('This API is deprecated. The information is included in assessment info.')
         return self._call_api('GET', 'assessments/' + assessment_id + '/summary')
 
     def get_assessment_sqls(self, assessment_id, limit = PAGE_LIMIT, offset = 0):
