@@ -145,7 +145,8 @@ class InsightDatabaseTesting():
 
     def update_license(self, license_key):
         self._logger.info('Update License: ' + license_key)
-        return self._call_api('PUT', 'license/' + license_key)
+        body = { 'key': license_key }
+        return self._call_api('PUT', 'license', body)
 
     # for User operation (admin)
 
@@ -362,7 +363,7 @@ class InsightDatabaseTesting():
     def update_sql_workload_db_user(self, sql_workload_id, old_users, new_users):
         self._logger.info('Update the SQL-workload DB users: ' + sql_workload_id)
         body = { 'oldusers': old_users, 'newusers': new_users }
-        return self._call_api('POST', 'sql-workloads/' + sql_workload_id + '/modify', body)
+        return self._call_api('PUT', 'sql-workloads/' + sql_workload_id + '/modify', body)
 
     def update_sql_workload_sqls(self, sql_workload_id):
         self._logger.info('Update the SQL-workload SQLs from SCT file: ' + sql_workload_id)
