@@ -127,6 +127,30 @@ class InsightDatabaseTesting():
                 if target_element['name'] == target_name:
                     target_id = target_element['id']
                     return target_id
+    
+    def _set_optional_parameter(self, body, key, val):
+        if val is not None:
+            body[key] = val
+    
+    def _wait_until_ready(self, key, id, progress_comment, progress_key):
+        time.sleep(WAIT_SECONDS)
+        # wait until statusEx becomes 0(ready)
+        while True:
+            response = self._call_api('GET', key + '/' + id)
+            if response['statusEx'] == 0:
+                # finished
+                self._logger.info('  ' + progress_comment + ':' + str(response['jobs'][0][progress_key]))
+                break
+
+            if 'jobs' in response and len(response['jobs']) > 0:
+                if progress_key in response['jobs'][0] and response['jobs'][0][progress_key] is not None:
+                    self._logger.info('  current ' + progress_comment + ':' + str(response['jobs'][0][progress_key]))
+                else:
+                    self._logger.warning('  not started ...')
+            else:
+                self._logger.info('  preparing ...')
+            time.sleep(WAIT_SECONDS)
+        return response
 
     # for Version information
 
@@ -193,18 +217,27 @@ class InsightDatabaseTesting():
     def get_database_id_from_name(self, database_name):
         return self._get_id_from_name('databases', database_name)
 
-    def create_database(self, database_name, db_type, db_version, connection_string):
+    def create_database(self, database_name, db_type, db_version, connection_string, memo = None):
         self._logger.info('Create a database: ' + database_name)
         body = { 'name': database_name, 'dbType': db_type, 'dbVersion': db_version, 'connectionString': connection_string }
+        self._set_optional_parameter(body, 'memo', memo)
         return self._call_api('POST', 'databases', body)
 
     def get_database(self, database_id):
         self._logger.info('Get the database: ' + database_id)
         return self._call_api('GET', 'databases/' + database_id)
 
-    def update_database(self, database_id, database_name, db_type, db_version, connection_string):
+    def update_database(self, database_id, database_name = None, db_type = None, db_version = None, connection_string = None, memo = None):
         self._logger.info('Update the database: ' + database_id)
-        body = { 'name': database_name, 'dbType': db_type, 'dbVersion': db_version, 'connectionString': connection_string }
+        body = {}
+        self._set_optional_parameter(body, 'name', database_name)
+        self._set_optional_parameter(body, 'dbType', db_type)
+        self._set_optional_parameter(body, 'dbVersion', db_version)
+        self._set_optional_parameter(body, 'connectionString', connection_string)
+        self._set_optional_parameter(body, 'memo', memo)
+        if len(body) == 0:
+            # do nothing
+            return
         return self._call_api('PATCH', 'databases/' + database_id, body)
 
     def delete_database(self, database_id):
@@ -261,65 +294,29 @@ class InsightDatabaseTesting():
             else:
                 print('    no jobs element.')
 
-    def create_sql_workload(self, sql_workload_name, db_type, source_file_name, is_unique = False):
+    def create_sql_workload(self, sql_workload_name, db_type, source_file_name, is_unique = False, memo = None):
         self._logger.info('Create a SQL-workload: ' + sql_workload_name)
         body = { 'name': sql_workload_name, 'dbType': db_type, 'dataKind': 'MS', 'source': source_file_name, 'unique': ('true' if is_unique else 'false') }
+        self._set_optional_parameter(body, 'memo', memo)
         response = self._call_api('POST', 'sql-workloads/', body)
         if response is None:
             return None
 
         sql_workload_id = response['id']
+        return self._wait_until_ready('sql-workloads', sql_workload_id, 'processed sqls', 'count')
 
-        time.sleep(WAIT_SECONDS)
-
-        # wait until sql_set is ready
-        while True:
-            response = self._call_api('GET', 'sql-workloads/' + sql_workload_id)
-            if response['status'] == 1:
-                self._logger.info('  processed sqls:' + str(response['jobs'][0]['count']))
-                break
-
-            if 'jobs' in response and len(response['jobs']) > 0:
-                if 'count' in response['jobs'][0] and response['jobs'][0]['count'] is not None:
-                    self._logger.info('  current processed sqls:' + str(response['jobs'][0]['count']))
-                else:
-                    self._logger.warning('  not started ...')
-            else:
-                self._logger.info('  preparing ...')
-            time.sleep(WAIT_SECONDS)
-
-        return response
-
-    def create_sql_workload_upload(self, sql_workload_name, db_type, source_file_path, is_unique = False):
+    def create_sql_workload_upload(self, sql_workload_name, db_type, source_file_path, is_unique = False, memo = None):
         self._logger.info('Create a SQL-workload(upload): ' + sql_workload_name)
         file_content = open(source_file_path, 'rb')
         files = {'source': ('upload_file', file_content, 'text/csv')}
         body = { 'name': sql_workload_name, 'dbType': db_type, 'dataKind': 'MS', 'unique': ('true' if is_unique else 'false') }
+        self._set_optional_parameter(body, 'memo', memo)
         response = self._call_api('POST_UPLOAD', 'sql-workloads/upload', body, files)
         if response is None:
             return None
 
         sql_workload_id = response['id']
-
-        time.sleep(WAIT_SECONDS)
-
-        # wait until sql_set is ready
-        while True:
-            response = self._call_api('GET', 'sql-workloads/' + sql_workload_id)
-            if response['status'] == 1:
-                self._logger.info('  processed sqls:' + str(response['jobs'][0]['count']))
-                break
-
-            if 'jobs' in response and len(response['jobs']) > 0:
-                if 'count' in response['jobs'][0] and response['jobs'][0]['count'] is not None:
-                    self._logger.info('  current processed sqls:' + str(response['jobs'][0]['count']))
-                else:
-                    self._logger.warning('  not started ...')
-            else:
-                self._logger.info('  preparing ...')
-            time.sleep(WAIT_SECONDS)
-
-        return response
+        return self._wait_until_ready('sql-workloads', sql_workload_id, 'processed sqls', 'count')
     
     def get_sql_workload(self, sql_workload_id):
         self._logger.info('Get tje SQL-workload: ' + sql_workload_id)
@@ -328,17 +325,15 @@ class InsightDatabaseTesting():
     def get_sql_workload_id_from_name(self, sql_workload_name):
         return self._get_id_from_name('sql-workloads', sql_workload_name)
 
-    def update_sql_workload(self, sql_workload_id, sql_workload_name = None, db_type = None):
+    def update_sql_workload(self, sql_workload_id, sql_workload_name = None, db_type = None, memo = None):
         self._logger.info('Update the SQL-workload: ' + sql_workload_id)
-        if sql_workload_name is None and db_type is None:
-            # do nothing.
-            return None
-
         body = {}
-        if sql_workload_name is not None:
-            body['name'] = sql_workload_name
-        if db_type is not None:
-            body['dbType'] = db_type
+        self._set_optional_parameter(body, 'name', sql_workload_name)
+        self._set_optional_parameter(body, 'dbType', db_type)
+        self._set_optional_parameter(body, 'memo', memo)
+        if len(body) == 0:
+            # do nothing
+            return
         return self._call_api('PATCH', 'sql-workloads/' + sql_workload_id, body)
 
     def delete_sql_workload(self, sql_workload_id):
@@ -370,6 +365,71 @@ class InsightDatabaseTesting():
         self._logger.warn('Not supported yet.')
         # TODO: Not supported yet.
         return None
+
+    # for Patch SQL set operation
+
+    def list_patch_sqls(self):
+        return self._list_elements('patch-sqls')
+
+    def create_patch_sql_from_assessment(self, patch_sql_name, assessment_id, memo = None):
+        self._logger.info('Create a patch sql (from assessment): ' + patch_sql_name)
+        body = { 'name': patch_sql_name, 'assessmentId': assessment_id }
+        self._set_optional_parameter(body, 'memo', memo)
+        response = self._call_api('POST', 'patch-sqls/from-assessment', body)
+        if response is None:
+            return None
+
+        patch_sql_id = response['id']
+        return self._wait_until_ready('patch-sqls', patch_sql_id, 'processed(%)', 'percent')
+
+    def create_patch_sql_upload(self, patch_sql_name, source_file_path, memo = None):
+        self._logger.info('Create a patch sql (upload): ' + patch_sql_name)
+        file_content = open(source_file_path, 'rb')
+        files = {'source': ('upload_file', file_content, 'text/csv')}
+        body = { 'name': patch_sql_name }
+        self._set_optional_parameter(body, 'memo', memo)
+        response = self._call_api('POST_UPLOAD', 'patch-sqls/from-sct', body, files)
+        if response is None:
+            return None
+
+        patch_sql_id = response['id']
+        return self._wait_until_ready('patch-sqls', patch_sql_id, 'processed(%)', 'percent')
+
+    def merge_patch_sqls(self, patch_sql_name, patch_sqls, memo = None):
+        self._logger.info('Create a patch sql (from patch sqls): ' + patch_sql_name)
+        body = { 'name': patch_sql_name, 'patchSqlIds': patch_sqls }
+        self._set_optional_parameter(body, 'memo', memo)
+        response = self._call_api('POST', 'patch-sqls/merge', body)
+        if response is None:
+            return None
+
+        patch_sql_id = response['id']
+        return self._wait_until_ready('patch-sqls', patch_sql_id, 'processed(%)', 'percent')
+
+    def get_patch_sql(self, patch_sql_id):
+        self._logger.info('Get the patch sql: ' + patch_sql_id)
+        return self._call_api('GET', 'patch-sqls/' + patch_sql_id)
+
+    def get_patch_sql_id_from_name(self, patch_sql_name):
+        return self._get_id_from_name('patch-sqls', patch_sql_name)
+
+    def update_patch_sql(self, patch_sql_id, patch_sql_name = None, memo = None):
+        self._logger.info('Update the patch sql: ' + patch_sql_id)
+        body = {}
+        self._set_optional_parameter(body, 'name', patch_sql_name)
+        self._set_optional_parameter(body, 'memo', memo)
+        if len(body) == 0:
+            # do nothing
+            return
+        return self._call_api('PATCH', 'patch-sqls/' + patch_sql_id, body)
+
+    def delete_patch_sql(self, patch_sql_id):
+        self._logger.info('Delete the patch sql: ' + patch_sql_id)
+        return self._call_api('DELETE', 'patch-sqls/' + patch_sql_id)
+
+    def get_patch_sql_sqls(self, patch_sql_id, limit = PAGE_LIMIT, offset = 0):
+        self._logger.info('Get patch sql sqls: ' + patch_sql_id + ' (limit=' + str(limit) + ', offset=' + str(offset) + ')')
+        return self._list_elements_part('patch-sqls/' + patch_sql_id + '/hash-rule/rows', limit, offset)
 
     # for Assessment operation
 
@@ -438,26 +498,7 @@ class InsightDatabaseTesting():
             return None
 
         assessment_id = response['id']
-
-        time.sleep(WAIT_SECONDS)
-
-        # wait until sql_set is ready
-        while True:
-            response = self._call_api('GET', 'assessments/' + assessment_id)
-            if response['status'] == 1:
-                self._logger.info('  processed sessions:' + str(response['jobs'][0]['count']))
-                break
-
-            if 'jobs' in response and len(response['jobs']) > 0:
-                if 'count' in response['jobs'][0] and response['jobs'][0]['count'] is not None:
-                    self._logger.info('  current processed sessions:' + str(response['jobs'][0]['count']) + ' ' + str(response['jobs'][0]['percent']) + '%')
-                else:
-                    self._logger.warning('  not started ...')
-            else:
-                self._logger.info('  preparing ...')
-            time.sleep(WAIT_SECONDS)
-
-        return response
+        return self._wait_until_ready('assessments', assessment_id, 'processed sessions', 'count')
 
     def get_assessment(self, assessment_id):
         self._logger.info('Get the assessment: ' + assessment_id)
@@ -466,12 +507,14 @@ class InsightDatabaseTesting():
     def get_assessment_id_from_name(self, assessment_name):
         return self._get_id_from_name('assessments', assessment_name)
 
-    def update_assessment(self, assessment_id, assessment_name = None):
+    def update_assessment(self, assessment_id, assessment_name = None, memo = None):
         self._logger.info('Update the assessment: ' + assessment_id)
-        if assessment_name is None:
-            # do nothing.
-            return None
-        body = { 'name': assessment_name }
+        body = {}
+        self._set_optional_parameter(body, 'name', assessment_name)
+        self._set_optional_parameter(body, 'memo', memo)
+        if len(body) == 0:
+            # do nothing
+            return
         return self._call_api('PATCH', 'assessments/' + assessment_id, body)
 
     def delete_assessment(self, assessment_id):
