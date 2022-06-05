@@ -89,9 +89,13 @@ class InsightDatabaseTesting():
 
         return r.json()
 
-    def _list_elements_part(self, list_key, limit = PAGE_LIMIT, offset = 0):
+    def _list_elements_part(self, list_key, limit = PAGE_LIMIT, offset = 0, query_parameters = None):
+        query_parameter_string = ''
+        if query_parameters is not None:
+            for k,v in query_parameters.items():
+                query_parameter_string += '&' + k + '=' + v
         elements = []
-        response = self._call_api('GET', list_key + '?limit=' + str(limit) + '&offset=' + str(offset))
+        response = self._call_api('GET', list_key + '?limit=' + str(limit) + '&offset=' + str(offset) + query_parameter_string)
         if response is None:
             return None
 
@@ -101,10 +105,10 @@ class InsightDatabaseTesting():
 
         return elements
 
-    def _list_elements(self, list_key):
+    def _list_elements(self, list_key, query_parameters = None):
         elements = []
         for offset in range(0, MAX_ELEMENTS, PAGE_LIMIT):
-            elemens_part = self._list_elements_part(list_key, PAGE_LIMIT, offset)
+            elemens_part = self._list_elements_part(list_key, PAGE_LIMIT, offset, query_parameters)
             if elemens_part is None:
                 break
             if len(elemens_part) == 0:
@@ -347,8 +351,12 @@ class InsightDatabaseTesting():
         return self._call_api('GET', 'sql-workloads/' + sql_workload_id + '/summary')
 
     def get_sql_workload_sqls(self, sql_workload_id, limit = PAGE_LIMIT, offset = 0):
-        self._logger.info('Get SQL-workload sqls: ' + sql_workload_id + ' (limit=' + str(limit) + ', offset=' + str(offset) + ')')
+        self._logger.info('Get SQL-workload SQLs: ' + sql_workload_id + ' (limit=' + str(limit) + ', offset=' + str(offset) + ')')
         return self._list_elements_part('sql-workloads/' + sql_workload_id + '/rows', limit, offset)
+
+    def get_sql_workload_sqls_all(self, sql_workload_id):
+        self._logger.info('Get SQL-workload all SQLs (This operation may take long time to be processed.): ' + sql_workload_id)
+        return self._list_elements('sql-workloads/' + sql_workload_id + '/rows')
 
     def copy_sql_workload(self, sql_workload_id, name):
         self._logger.info('Copy the SQL-workload: ' + sql_workload_id + ' (name=' + name + ')')
@@ -428,8 +436,12 @@ class InsightDatabaseTesting():
         return self._call_api('DELETE', 'patch-sqls/' + patch_sql_id)
 
     def get_patch_sql_sqls(self, patch_sql_id, limit = PAGE_LIMIT, offset = 0):
-        self._logger.info('Get patch sql sqls: ' + patch_sql_id + ' (limit=' + str(limit) + ', offset=' + str(offset) + ')')
+        self._logger.info('Get patch sql SQLs: ' + patch_sql_id + ' (limit=' + str(limit) + ', offset=' + str(offset) + ')')
         return self._list_elements_part('patch-sqls/' + patch_sql_id + '/hash-rule/rows', limit, offset)
+
+    def get_patch_sql_sqls_all(self, patch_sql_id):
+        self._logger.info('Get patch sql SQLs (This operation may take long time to be processed.): ' + patch_sql_id)
+        return self._list_elements('patch-sqls/' + patch_sql_id + '/hash-rule/rows')
 
     # for Assessment operation
 
@@ -530,6 +542,10 @@ class InsightDatabaseTesting():
     def get_assessment_sqls(self, assessment_id, limit = PAGE_LIMIT, offset = 0):
         self._logger.info('Get assessment SQLs: ' + assessment_id + ' (limit=' + str(limit) + ', offset=' + str(offset) + ')')
         return self._list_elements_part('assessments/' + assessment_id + '/rows', limit, offset)
+
+    def get_assessment_sqls_all(self, assessment_id, query_parameters = None):
+        self._logger.info('Get assessment SQLs (This operation may take long time to be processed.): ' + assessment_id)
+        return self._list_elements('assessments/' + assessment_id + '/rows', query_parameters)
 
     def get_assessment_sql(self, assessment_id, assessment_row_id):
         self._logger.info('Get assessment SQL: ' + assessment_id + ' (assessment_row_id=' + str(assessment_row_id) + ')')
