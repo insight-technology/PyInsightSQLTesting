@@ -619,10 +619,10 @@ class InsightDatabaseTesting():
         url = self._url_base + 'assessments/' + assessment_id + '/results/' + str(assessment_row_id) + '/cmpQueryRows/download?format=csv'
         return self._download_file(url, file_name)
 
-    def download_assessment_csv(self, assessment_id, csv_type = 'basic', download_success = False, download_failed = True):
+    def download_assessment_csv(self, assessment_id, csv_type = 'basic', result_code = '1,2,3,4,5'):
         CHUNK_SIZE = 1024
-        if not (download_success or download_failed):
-            self._logger.warning('Eather download_success or download_failed must be True.')
+        if result_code is None or result_code == '':
+            self._logger.warning('result_code must not be empty.')
             return None
 
         response = self._call_api('GET', 'assessments/' + assessment_id)
@@ -635,13 +635,7 @@ class InsightDatabaseTesting():
         self._logger.info('Donwload the assessment csv: ' + file_name)
 
         query_parameter = '?type=' + csv_type
-        query_parameter += '&result='
-        if download_success:
-            query_parameter += 'success'
-        if download_failed:
-            if download_success:
-                query_parameter += '%2C'
-            query_parameter += 'failed'
+        query_parameter += '&resultCode=' + result_code
 
         url = self._url_base + 'assessments/' + assessment_id + '/download/csv' + query_parameter
         return self._download_file(url, file_name)
