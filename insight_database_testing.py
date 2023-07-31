@@ -155,6 +155,18 @@ class InsightDatabaseTesting():
                 self._logger.info('  preparing ...')
             time.sleep(WAIT_SECONDS)
         return response
+    
+    def _download_file(self, url, file_name):
+        CHUNK_SIZE = 1024
+        response = requests.get(url, stream=True, cookies=self._cookies)
+        if response.status_code == 200:
+            with open(file_name, 'wb') as file:
+                for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
+                    file.write(chunk)
+        else:
+            return None
+
+        return file_name
 
     # for Version information
 
@@ -350,9 +362,9 @@ class InsightDatabaseTesting():
         self._logger.warn('This API is deprecated. The information is included in SQL-workload info.')
         return self._call_api('GET', 'sql-workloads/' + sql_workload_id + '/summary')
 
-    def get_sql_workload_sqls(self, sql_workload_id, limit = PAGE_LIMIT, offset = 0):
+    def get_sql_workload_sqls(self, sql_workload_id, limit = PAGE_LIMIT, offset = 0, query_parameters = None):
         self._logger.info('Get SQL-workload SQLs: ' + sql_workload_id + ' (limit=' + str(limit) + ', offset=' + str(offset) + ')')
-        return self._list_elements_part('sql-workloads/' + sql_workload_id + '/rows', limit, offset)
+        return self._list_elements_part('sql-workloads/' + sql_workload_id + '/rows', limit, offset, query_parameters)
 
     def get_sql_workload_sqls_all(self, sql_workload_id):
         self._logger.info('Get SQL-workload all SQLs (This operation may take long time to be processed.): ' + sql_workload_id)
@@ -435,9 +447,9 @@ class InsightDatabaseTesting():
         self._logger.info('Delete the patch sql: ' + patch_sql_id)
         return self._call_api('DELETE', 'patch-sqls/' + patch_sql_id)
 
-    def get_patch_sql_sqls(self, patch_sql_id, limit = PAGE_LIMIT, offset = 0):
+    def get_patch_sql_sqls(self, patch_sql_id, limit = PAGE_LIMIT, offset = 0, query_parameters = None):
         self._logger.info('Get patch sql SQLs: ' + patch_sql_id + ' (limit=' + str(limit) + ', offset=' + str(offset) + ')')
-        return self._list_elements_part('patch-sqls/' + patch_sql_id + '/hash-rule/rows', limit, offset)
+        return self._list_elements_part('patch-sqls/' + patch_sql_id + '/hash-rule/rows', limit, offset, query_parameters)
 
     def get_patch_sql_sqls_all(self, patch_sql_id):
         self._logger.info('Get patch sql SQLs (This operation may take long time to be processed.): ' + patch_sql_id)
@@ -533,23 +545,79 @@ class InsightDatabaseTesting():
         self._logger.info('Delete the assessment: ' + assessment_id)
         return self._call_api('DELETE', 'assessments/' + assessment_id)
 
-    # Deprecated
-    def get_assessment_summary(self, assessment_id):
-        self._logger.info('Get assessment summary: ' + assessment_id)
-        self._logger.warn('This API is deprecated. The information is included in assessment info.')
-        return self._call_api('GET', 'assessments/' + assessment_id + '/summary')
-
-    def get_assessment_sqls(self, assessment_id, limit = PAGE_LIMIT, offset = 0):
+    def get_assessment_sqls(self, assessment_id, limit = PAGE_LIMIT, offset = 0, query_parameters = None):
         self._logger.info('Get assessment SQLs: ' + assessment_id + ' (limit=' + str(limit) + ', offset=' + str(offset) + ')')
-        return self._list_elements_part('assessments/' + assessment_id + '/rows', limit, offset)
+        return self._list_elements_part('assessments/' + assessment_id + '/results', limit, offset, query_parameters)
 
     def get_assessment_sqls_all(self, assessment_id, query_parameters = None):
         self._logger.info('Get assessment SQLs (This operation may take long time to be processed.): ' + assessment_id)
-        return self._list_elements('assessments/' + assessment_id + '/rows', query_parameters)
+        return self._list_elements('assessments/' + assessment_id + '/results', query_parameters)
 
     def get_assessment_sql(self, assessment_id, assessment_row_id):
         self._logger.info('Get assessment SQL: ' + assessment_id + ' (assessment_row_id=' + str(assessment_row_id) + ')')
-        return self._call_api('GET', 'assessments/' + assessment_id + '/rows/' + str(assessment_row_id))
+        return self._call_api('GET', 'assessments/' + assessment_id + '/results/' + str(assessment_row_id))
+
+    def get_assessment_sql_query_rows(self, assessment_id, assessment_row_id, offset = 0):
+        self._logger.info('Get assessment SQL query rows: ' + assessment_id + ' (assessment_row_id=' + str(assessment_row_id) + ')')
+        return self._call_api('GET', 'assessments/' + assessment_id + '/results/' + str(assessment_row_id) + '/queryRows?offset=' + str(offset))
+
+    def get_assessment_sql_query_rows_all(self, assessment_id, assessment_row_id):
+        self._logger.info('Get assessment SQL query rows (This operation may take long time to be processed.): ' + assessment_id + ' (assessment_row_id=' + str(assessment_row_id) + ')')
+        elements = []
+        for offset in range(0, MAX_ELEMENTS, 100):
+            elemens_part = self.get_assessment_sql_query_rows(assessment_id, assessment_row_id, offset)
+            if elemens_part is None:
+                break
+            if len(elemens_part) == 0:
+                break
+
+            elements.extend(elemens_part)
+        return elements
+    
+    def download_assessment_sql_query_rows(self, assessment_id, assessment_row_id):
+        CHUNK_SIZE = 1024
+        response = self._call_api('GET', 'assessments/' + assessment_id)
+        if response is None:
+            return None
+
+        assessment_name = response['name']
+        file_name = assessment_name + '_' + str(assessment_row_id) + '_returns(tgt).csv'
+    
+        self._logger.info('Donwload the assessment SQL query rows(csv): ' + file_name)
+
+        url = self._url_base + 'assessments/' + assessment_id + '/results/' + str(assessment_row_id) + '/queryRows/download?format=csv'
+        return self._download_file(url, file_name)
+
+    def get_assessment_sql_cmp_query_rows(self, assessment_id, assessment_row_id, offset = 0):
+        self._logger.info('Get assessment SQL query rows(cmp): ' + assessment_id + ' (assessment_row_id=' + str(assessment_row_id) + ')')
+        return self._call_api('GET', 'assessments/' + assessment_id + '/results/' + str(assessment_row_id) + '/cmpQueryRows?offset=' + str(offset))
+
+    def get_assessment_sql_cmp_query_rows_all(self, assessment_id, assessment_row_id):
+        self._logger.info('Get assessment SQL query rows(cmp) (This operation may take long time to be processed.): ' + assessment_id + ' (assessment_row_id=' + str(assessment_row_id) + ')')
+        elements = []
+        for offset in range(0, MAX_ELEMENTS, 100):
+            elemens_part = self.get_assessment_sql_cmp_query_rows(assessment_id, assessment_row_id, offset)
+            if elemens_part is None:
+                break
+            if len(elemens_part) == 0:
+                break
+
+            elements.extend(elemens_part)
+        return elements
+
+    def download_assessment_sql_cmp_query_rows(self, assessment_id, assessment_row_id):
+        CHUNK_SIZE = 1024
+        response = self._call_api('GET', 'assessments/' + assessment_id)
+        if response is None:
+            return None
+
+        assessment_name = response['name']
+        file_name = assessment_name + '_' + str(assessment_row_id) + '_returns(cmp).csv'
+    
+        self._logger.info('Donwload the assessment SQL query rows(cmp, csv): ' + file_name)
+
+        url = self._url_base + 'assessments/' + assessment_id + '/results/' + str(assessment_row_id) + '/cmpQueryRows/download?format=csv'
+        return self._download_file(url, file_name)
 
     def download_assessment_csv(self, assessment_id, csv_type = 'basic', download_success = False, download_failed = True):
         CHUNK_SIZE = 1024
@@ -576,10 +644,4 @@ class InsightDatabaseTesting():
             query_parameter += 'failed'
 
         url = self._url_base + 'assessments/' + assessment_id + '/download/csv' + query_parameter
-        response = requests.get(url, stream=True, cookies=self._cookies)
-        if response.status_code == 200:
-            with open(file_name, 'wb') as file:
-                for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
-                    file.write(chunk)
-
-        return file_name
+        return self._download_file(url, file_name)
