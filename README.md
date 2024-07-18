@@ -1,2 +1,2 @@
-# PyInsightDatabaseTesting
-The Insight Database Testing SDK for Python
+# PyInsightSQLTesting (formerly PyInsightDatabaseTesting)
+The Insight SQL Testing SDK for Python
