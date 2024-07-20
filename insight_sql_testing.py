@@ -18,10 +18,10 @@ def get_property(dic, key):
     else:
         return '(no ' + key + ')'
 
-class InsightDatabaseTesting():
+class InsightSQLTesting():
     def __init__(self, url_base, user, password, upper_logger = None):
         """
-        Create Insight Database Testing session.
+        Create Insight SQL Testing session.
 
         Parameters
         ----------
@@ -173,8 +173,8 @@ class InsightDatabaseTesting():
     def get_version(self):
         self._logger.info('Get Version')
         version_info = self._call_api('GET', 'version')
-        if version_info['VERSION'][0] != '3':
-            self._logger.warn('This PyInsightDatabaseTesting is tested on Insight Database Testing Version 3.x. It may does not work properly for this version.')
+        if version_info['VERSION'][0] != '4':
+            self._logger.warn('This PyInsightSQLTesting is tested on Insight SQL Testing Version 4.x. It may does not work properly for this version.')
         return version_info
 
     # for License operation (admin)
@@ -502,21 +502,44 @@ class InsightDatabaseTesting():
         db_users, db_user_passwords,
         target_db_id, cmp_source_db_id = None,
         patch_sql_workload_id = None, cmp_patch_sql_workload_id = None,
-        execMode = 'P', transaction = 'R', query_timeout_millisec = None,
-        concurrency = 1,
-        etime_zero = 0.2, header_comparison_level = 'STRICT',
-        convert_parameter = False, filling_bind_value_map = {'UNKNOWN': { 'type': 'UNKNOWN', 'value':'-'}},
-        start = '00000000000000', end = '99999999999999'):
+        memo = None,
+        start = '00000000000000', end = '99999999999999',
+        is_serial_mode = False, sql_start_time_begin = None, sql_start_time_end = None,
+        exec_level = 'E', transaction = 'N',
+        result_record = None, query_plan_record = None, compare_on_disk = None,
+        alt_users = None, cmp_alt_users = None,
+        etime_zero = 0.2, concurrency = 1, convert_parameter = False,
+        filling_bind_value_map = {'UNKNOWN': { 'type': 'UNKNOWN', 'value':'-'}},
+        cmp_filling_bind_value_map = {'UNKNOWN': { 'type': 'UNKNOWN', 'value':'-'}},
+        header_comparison_level = 'STRICT', order_comparison_level = 'STRICT',
+        query_timeout_millisec = None,
+        time_threshold = None, ratio_threshold = None,
+        trim_char = False, epsilon = None,
+        fetch_size = None, fetch_limit = None,
+        hook = None, cmp_hook = None, ses_hook = None, cmp_ses_hook = None,
+        cmp_pswds = None):
         self._logger.info('Execute an assessment: ' + assessment_name)
-        body = { 'name': assessment_name, 'sqlWorkloadId': sql_workload_id,
-            'users': db_users, 'pswds': db_user_passwords,
+        body = {
+            'name': assessment_name,
+            'memo': memo,
+            'sqlWorkloadId': sql_workload_id,
             'databaseId': target_db_id, 'cmpDatabaseId': cmp_source_db_id,
             'patchSqlId': patch_sql_workload_id, 'cmpPatchSqlId': cmp_patch_sql_workload_id,
-            'execLevel': execMode, 'transaction': transaction, 'queryTimeoutMillisec': query_timeout_millisec,
-            'concurrency': concurrency,
-            'etimeZero': etime_zero, 'headerComparisonLevel': header_comparison_level,
-            'convertParameter': convert_parameter, 'fillingBindValueMap': filling_bind_value_map,
-            'start': start, 'end': end }
+            'start': start, 'end': end,
+            'isSerialMode': is_serial_mode, 'sqlStartTimeBegin': sql_start_time_begin, 'sqlStartTimeEnd': sql_start_time_end,
+            'execLevel': exec_level, 'transaction': transaction,
+            'resultRecord': result_record, 'queryPlanRecord': query_plan_record, 'compareOnDisk': compare_on_disk,
+            'users': db_users, 'altUsers': alt_users, 'cmpAltUsers': cmp_alt_users,
+            'etimeZero': etime_zero, 'concurrency': concurrency, 'convertParameter': convert_parameter,
+            'fillingBindValueMap': filling_bind_value_map, 'cmpFillingBindValueMap': cmp_filling_bind_value_map,
+            'headerComparisonLevel': header_comparison_level, 'orderComparisonLevel': order_comparison_level,
+            'queryTimeoutMillisec': query_timeout_millisec,
+            'timeThreshold': time_threshold, 'ratioThreshold': ratio_threshold,
+            'trimChar': trim_char, 'epsilon': epsilon,
+            'fetchSize': fetch_size, 'fetchLimit': fetch_limit,
+            'hook': hook, 'cmp': cmp_hook, 'sesHook': ses_hook, 'cmpSesHook': cmp_ses_hook,
+            'pswds': db_user_passwords, 'cmpPswds': cmp_pswds
+        }
         response = self._call_api('POST', 'assessments', body)
         if response is None:
             return None
