@@ -173,8 +173,8 @@ class InsightSQLTesting():
     def get_version(self):
         self._logger.info('Get Version')
         version_info = self._call_api('GET', 'version')
-        if version_info['VERSION'][0] != '3':
-            self._logger.warn('This PyInsightSQLTesting is tested on Insight SQL Testing Version 3.x. It may does not work properly for this version.')
+        if version_info['VERSION'][0] != '4':
+            self._logger.warn('This PyInsightSQLTesting is tested on Insight SQL Testing Version 4.x. It may does not work properly for this version.')
         return version_info
 
     # for License operation (admin)
